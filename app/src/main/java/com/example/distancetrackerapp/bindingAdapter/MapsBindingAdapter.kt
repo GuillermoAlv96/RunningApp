@@ -5,6 +5,9 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.databinding.BindingAdapter
 
+/**
+ * This class will make changes on the map interface after reopening the app that is still running
+ */
 class MapsBindingAdapter {
 
 
