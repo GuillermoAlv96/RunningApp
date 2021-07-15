@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
@@ -34,6 +35,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import com.google.maps.android.data.geojson.GeoJsonLayer
 import com.vmadalin.easypermissions.EasyPermissions
 import com.vmadalin.easypermissions.dialogs.SettingsDialog
 import kotlinx.coroutines.delay
@@ -75,6 +77,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         binding.lifecycleOwner = this
         binding.tracking = this
 
+
         binding.startButton.setOnClickListener {
             onStartButtonClicked()
         }
@@ -90,27 +93,44 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         return binding.root
     }
 
+
     /**
      * After the view has been completely created it calls...
      */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+
+
         super.onViewCreated(view, savedInstanceState)
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
-        mapFragment?.getMapAsync(this)
+
+        mapFragment?.getMapAsync(this@MapsFragment)
+
+
     }
+
 
     /**
      * subclass of the Android View class, allows you to place a map in an Android View object
      */
     //will be trigger everytime our map is ready
     //it asks for permissions but we already got them
-    @SuppressLint("MissingPermission", "PotentialBehaviorOverride")
+
+    @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap?) {
+
 
         map = googleMap!!
 
         //initialize google maps button with my location
-        map.isMyLocationEnabled = true
+        if (Permissions.hasLocationPermission(requireContext())) {
+            Toast.makeText(context, "Welcome", Toast.LENGTH_SHORT).show()
+            if (Permissions.hasLocationPermission(requireContext())) {
+                map.isMyLocationEnabled = true
+            }
+        } else {
+            Permissions.requestLocationPermission(this)
+        }
+
         map.setOnMyLocationButtonClickListener(this)
         //map.setOnMarkerClickListener(this)
 
@@ -123,10 +143,21 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
             isCompassEnabled = false
             isScrollGesturesEnabled = false
         }
+
+        //We set camera view on user
+        onCameraUser()
+
         observeTrackerService()
+        val layer = GeoJsonLayer(map, R.raw.map, context)
+        layer.addLayerToMap()
+
+
     }
 
 
+    /**
+     * Once the map is ready we initialize tracking services (time,location,...)
+     */
     private fun observeTrackerService() {
         TrackerService.locationList.observe(viewLifecycleOwner, {
             if (it != null) {
@@ -169,6 +200,9 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
 
+    /**
+     * Every second will pain a line on that last location passed
+     */
     private fun followPolyline() {
         if (locationList.isNotEmpty()) {
             map.animateCamera(
@@ -187,15 +221,13 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
      * else it will ask for them
      */
     private fun onStartButtonClicked() {
-        if (Permissions.hasBackgroundLocationPermission(requireContext())) {
-            Log.d("MapsActivity", "Already Enabled")
-            startCountDown()
-            binding.startButton.disable()
-            binding.startButton.hide()
-            binding.stopButton.show()
-        } else {
-            Permissions.requestBackgroundLocationPermission(this)
-        }
+
+        Log.d("MapsActivity", "Already Enabled")
+        startCountDown()
+        binding.startButton.disable()
+        binding.startButton.hide()
+        binding.stopButton.show()
+
     }
 
     private fun onStopButtonClicked() {
@@ -206,6 +238,9 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
 
+    /**
+     *Creates a countdown on the interface
+     */
     private fun startCountDown() {
         binding.timerTextView.show()
         binding.stopButton.disable()
@@ -241,11 +276,15 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         timer.start()
     }
 
+
     private fun stopForegroundService() {
         binding.startButton.disable()
         sendActionCommandToService(Constants.ACTION_SERVICE_STOP)
     }
 
+    /**
+     * Channel to send info to Trackerserviceclass
+     */
     private fun sendActionCommandToService(action: String) {
         Intent(
             requireContext(),
@@ -269,9 +308,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         }
     }
 
-    /**
-     *
-     */
+
     override fun onMyLocationButtonClick(): Boolean {
         binding.hintTextView.animate().alpha(0f).duration = 1500
         lifecycleScope.launch {
@@ -292,16 +329,23 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
 
+    /**
+     * if user accepts permissions
+     */
+    override fun onPermissionsGranted(requestCode: Int, perms: List<String>) {
+
+    }
+
+
+    /**
+     * if user doesn't accept permissions
+     */
     override fun onPermissionsDenied(requestCode: Int, perms: List<String>) {
         if (EasyPermissions.somePermissionPermanentlyDenied(this, perms)) {
             SettingsDialog.Builder(requireActivity()).build().show()
         } else {
-            Permissions.requestBackgroundLocationPermission(this)
+            Permissions.requestLocationPermission(this)
         }
-    }
-
-    override fun onPermissionsGranted(requestCode: Int, perms: List<String>) {
-        onStartButtonClicked()
     }
 
     private fun showBiggerPicture() {
@@ -343,28 +387,42 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
 
 
     @SuppressLint("MissingPermission")
-    private fun onResetButtonClicked() {
-        fusedLocationProviderClient.lastLocation.addOnCompleteListener {
-            val lastKnownLocation = LatLng(
-                it.result.latitude,
-                it.result.longitude
-            )
-            map.animateCamera(
-                CameraUpdateFactory.newCameraPosition(
-                    setCameraPosition(lastKnownLocation)
+    private fun onCameraUser() {
+
+        if (Permissions.hasLocationPermission(requireContext())) {
+            fusedLocationProviderClient.lastLocation.addOnCompleteListener {
+                val lastKnownLocation = LatLng(
+                    it.result.latitude,
+                    it.result.longitude
                 )
-            )
-            for (polyLine in polylineList) {
-                polyLine.remove()
+                map.animateCamera(
+                    CameraUpdateFactory.newCameraPosition(
+                        setCameraPosition(lastKnownLocation)
+                    )
+                )
             }
-            for (marker in markerList){
-                marker.remove()
-            }
-            locationList.clear()
-            markerList.clear()
-            binding.restarButton.hide()
-            binding.startButton.show()
+        } else {
+            Toast.makeText(context, "No permission", Toast.LENGTH_SHORT).show()
         }
+    }
+
+
+    @SuppressLint("MissingPermission")
+    private fun onResetButtonClicked() {
+
+
+        onCameraUser()
+        for (polyLine in polylineList) {
+            polyLine.remove()
+        }
+        for (marker in markerList) {
+            marker.remove()
+        }
+        locationList.clear()
+        markerList.clear()
+        binding.restarButton.hide()
+        binding.startButton.show()
+
     }
 
 
@@ -378,6 +436,8 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
 
         return true
     }
+
+
 }
 
 

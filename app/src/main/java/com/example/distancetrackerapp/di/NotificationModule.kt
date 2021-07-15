@@ -16,13 +16,23 @@ import dagger.hilt.android.components.ServiceComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.scopes.ServiceScoped
 
+/**
+ * this obj
+ */
 
+//Modules provide a container for your app's source code, resource files, and app level settings.
 @Module
 @InstallIn(ServiceComponent::class)
 object NotificationModule {
 
+    //Scope annotation for bindings that should exist for the life of a service.
     @ServiceScoped
+    //Use @Provides to tell Dagger how to provide classes that are not owned by your project
     @Provides
+
+            /**
+             * provide  info to  notification
+             */
     fun providePendingIntent(
         @ApplicationContext context: Context
     ): PendingIntent {
@@ -36,6 +46,9 @@ object NotificationModule {
 
     @ServiceScoped
     @Provides
+            /**
+             * create wt the user will see
+             */
     fun provideNotificationBuilder(
         @ApplicationContext context: Context,
         pendingIntent: PendingIntent
@@ -49,6 +62,9 @@ object NotificationModule {
 
     @ServiceScoped
     @Provides
+            /**
+             * identifies this notification from your app to the system
+             */
     fun provideNotificationManager(
         @ApplicationContext context: Context
     ): NotificationManager {

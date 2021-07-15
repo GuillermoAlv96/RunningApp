@@ -8,10 +8,11 @@ import java.text.DecimalFormat
 
 object MapUtils {
 
+
     fun setCameraPosition(location: LatLng): CameraPosition {
         return CameraPosition.Builder()
             .target(location)
-            .zoom(18f)
+            .zoom(28f)
             .build()
     }
 

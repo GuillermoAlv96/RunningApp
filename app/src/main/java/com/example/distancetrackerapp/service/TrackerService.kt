@@ -28,6 +28,10 @@ import javax.inject.Inject
 
 //@AndroidEntryPoint genera un componente individual de Hilt para cada clase de Android de tu proyecto. Estos componentes pueden recibir dependencias de sus respectivas clases superiores
 @AndroidEntryPoint
+
+/**
+ * Class where we group all services like notifications,locations updates,etc...
+ */
 class TrackerService : LifecycleService() {
 
     @Inject
@@ -47,6 +51,7 @@ class TrackerService : LifecycleService() {
         val locationList = MutableLiveData<MutableList<LatLng>>()
     }
 
+
     private fun setInitialValues() {
         started.postValue(false)
         startTime.postValue(0L)
@@ -57,6 +62,9 @@ class TrackerService : LifecycleService() {
 
 
     private val locationCallback = object : LocationCallback() {
+        /**
+         * After acquiring the location it will update location and notification
+         */
         override fun onLocationResult(result: LocationResult?) {
             super.onLocationResult(result)
             result?.locations?.let { locations ->
@@ -68,6 +76,9 @@ class TrackerService : LifecycleService() {
         }
     }
 
+    /**
+     * Update location
+     */
     private fun updateLocationList(location: Location) {
         val newLatLng = LatLng(location.latitude, location.longitude)
         locationList.value?.apply {
@@ -83,6 +94,11 @@ class TrackerService : LifecycleService() {
         super.onCreate()
     }
 
+
+    /**
+     * Function that will send info to start foregroundservice or stop it
+     * and call location updates if its on going
+     */
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.let {
@@ -103,11 +119,15 @@ class TrackerService : LifecycleService() {
         return super.onStartCommand(intent, flags, startId)
     }
 
+
     private fun startForegroundService() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, notification.build())
     }
 
+    /**
+     * Specify the time ratio in which we give location info
+     */
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         val locationRequest = LocationRequest.create().apply {
