@@ -17,4 +17,9 @@ public object Constants {
 
     const val LOCATION_UPDATE_INTERVAL = 4000L
     const val LOCATION_FASTEST_UPDATE_INTERVAL = 2000L
+
+    const val DEFAULT_ZOOM = 120L
+    const val AUTOCOMPLETE_REQUEST_CODE = 10
+
+    const val API_KEY = "AIzaSyB1XFXpmyOuDV1zLKevFT4GvAuwqGbmygo"
 }
