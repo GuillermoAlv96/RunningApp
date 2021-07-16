@@ -1,8 +1,10 @@
 package com.example.distancetrackerapp.ui.maps
 
 import android.annotation.SuppressLint
+import android.app.NotificationManager
 import android.content.Intent
 import android.graphics.Color
+import android.location.Location
 import androidx.fragment.app.Fragment
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -23,6 +25,7 @@ import com.example.distancetrackerapp.ui.maps.MapUtils.calculateElapsedTime
 import com.example.distancetrackerapp.ui.maps.MapUtils.calculateTheDistance
 import com.example.distancetrackerapp.ui.maps.MapUtils.setCameraPosition
 import com.example.distancetrackerapp.util.Constants
+import com.example.distancetrackerapp.util.Constants.DEFAULT_ZOOM
 import com.example.distancetrackerapp.util.ExtensionFunctions.disable
 import com.example.distancetrackerapp.util.ExtensionFunctions.enable
 import com.example.distancetrackerapp.util.ExtensionFunctions.hide
@@ -35,6 +38,8 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.net.PlacesClient
 import com.google.maps.android.data.geojson.GeoJsonLayer
 import com.vmadalin.easypermissions.EasyPermissions
 import com.vmadalin.easypermissions.dialogs.SettingsDialog
@@ -67,10 +72,27 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
 
 
+    // location retrieved by the Fused Location Provider.
+    private var lastKnownLocation: Location? = null
+
+    // The entry point to the Places API.
+    private lateinit var placesClient: PlacesClient
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Construct a PlacesClient
+
+
+
+
+    }
     override fun onCreateView(
+
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
+
     ): View? {
 
         _binding = FragmentMapsBinding.inflate(inflater, container, false)
@@ -87,6 +109,10 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         binding.restarButton.setOnClickListener {
             onResetButtonClicked()
         }
+        binding.placeButton.setOnClickListener {
+            val directions = MapsFragmentDirections.actionMapsFragmentToPlaceFragment()
+            findNavController().navigate(directions)
+        }
 
         fusedLocationProviderClient =
             LocationServices.getFusedLocationProviderClient(requireActivity())
@@ -99,7 +125,6 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
      */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 
-
         super.onViewCreated(view, savedInstanceState)
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
 
@@ -110,23 +135,22 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
 
 
     /**
-     * subclass of the Android View class, allows you to place a map in an Android View object
+     * Manipulates the map when it's available.
+     * This callback is triggered when the map is ready to be used.
      */
-    //will be trigger everytime our map is ready
-    //it asks for permissions but we already got them
-
     @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap?) {
 
 
         map = googleMap!!
 
+        // Retrieve location and camera position from saved instance state.
+        getDeviceLocation()
+
         //initialize google maps button with my location
         if (Permissions.hasLocationPermission(requireContext())) {
             Toast.makeText(context, "Welcome", Toast.LENGTH_SHORT).show()
-            if (Permissions.hasLocationPermission(requireContext())) {
-                map.isMyLocationEnabled = true
-            }
+            map.isMyLocationEnabled = true
         } else {
             Permissions.requestLocationPermission(this)
         }
@@ -134,18 +158,6 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         map.setOnMyLocationButtonClickListener(this)
         //map.setOnMarkerClickListener(this)
 
-        //specify how the user can interact with the map
-        map.uiSettings.apply {
-            isZoomControlsEnabled = false
-            isZoomGesturesEnabled = false
-            isRotateGesturesEnabled = false
-            isTiltGesturesEnabled = false
-            isCompassEnabled = false
-            isScrollGesturesEnabled = false
-        }
-
-        //We set camera view on user
-        onCameraUser()
 
         observeTrackerService()
         val layer = GeoJsonLayer(map, R.raw.map, context)
@@ -156,15 +168,103 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
 
 
     /**
+     *......BUTTONS.........
+     */
+
+    /**
+     * What happens when click on start button
+     */
+    private fun onStartButtonClicked() {
+
+        Log.d("MapsActivity", "Already Enabled")
+        startCountDown()
+        binding.startButton.disable()
+        binding.startButton.hide()
+        binding.stopButton.show()
+
+    }
+
+    /**
+     * What happens when click on stop button
+     */
+    private fun onStopButtonClicked() {
+
+        stopForegroundService()
+        binding.stopButton.hide()
+        binding.startButton.show()
+    }
+
+    /**
+     * What happens when click on reset button
+     */
+    @SuppressLint("MissingPermission")
+    private fun onResetButtonClicked() {
+        for (polyLine in polylineList) {
+            polyLine.remove()
+        }
+        for (marker in markerList) {
+            marker.remove()
+        }
+        locationList.clear()
+        markerList.clear()
+        binding.restarButton.hide()
+        binding.startButton.show()
+    }
+
+    /**
+     * Google MyLocation Button
+     */
+    override fun onMyLocationButtonClick(): Boolean {
+        lifecycleScope.launch {
+            delay(2500)
+            binding.startButton.show()
+        }
+        return false
+    }
+
+
+    /**
+     * Gets the current location of the device, and positions the map's camera.
+     */
+    private fun getDeviceLocation() {
+        /*
+         * Get the best and most recent location of the device, which may be null in rare
+         * cases when a location is not available.
+         */
+        try {
+            if (Permissions.hasLocationPermission(requireContext())) {
+
+                fusedLocationProviderClient.lastLocation.addOnCompleteListener { task ->
+
+                    if (task.isSuccessful) {
+                        // Set the map's camera position to the current location of the device.
+                        lastKnownLocation = task.result
+                        if (lastKnownLocation != null) {
+                            map?.moveCamera(
+                                CameraUpdateFactory.newLatLngZoom(
+                                    LatLng(
+                                        lastKnownLocation!!.latitude,
+                                        lastKnownLocation!!.longitude
+                                    ), DEFAULT_ZOOM.toFloat()
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (e: SecurityException) {
+            Log.e("Exception: %s", e.message, e)
+        }
+    }
+
+
+    /**
      * Once the map is ready we initialize tracking services (time,location,...)
      */
     private fun observeTrackerService() {
         TrackerService.locationList.observe(viewLifecycleOwner, {
             if (it != null) {
                 locationList = it
-                if (locationList.size > 1) {
-                    binding.stopButton.enable()
-                }
                 drawPolyline()
                 followPolyline()
             }
@@ -183,60 +283,6 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
             }
         })
     }
-
-
-    private fun drawPolyline() {
-        val polyline = map.addPolyline(
-            PolylineOptions().apply {
-                width(10f)
-                color(Color.BLUE)
-                jointType(JointType.ROUND)
-                startCap(ButtCap())
-                endCap(ButtCap())
-                addAll(locationList)
-            }
-        )
-        polylineList.add(polyline)
-    }
-
-
-    /**
-     * Every second will pain a line on that last location passed
-     */
-    private fun followPolyline() {
-        if (locationList.isNotEmpty()) {
-            map.animateCamera(
-                (CameraUpdateFactory.newCameraPosition(
-                    setCameraPosition(
-                        locationList.last()
-                    )
-                )), 1000, null
-            )
-        }
-    }
-
-
-    /**
-     * If the user has background permissions the activity will start
-     * else it will ask for them
-     */
-    private fun onStartButtonClicked() {
-
-        Log.d("MapsActivity", "Already Enabled")
-        startCountDown()
-        binding.startButton.disable()
-        binding.startButton.hide()
-        binding.stopButton.show()
-
-    }
-
-    private fun onStopButtonClicked() {
-
-        stopForegroundService()
-        binding.stopButton.hide()
-        binding.startButton.show()
-    }
-
 
     /**
      *Creates a countdown on the interface
@@ -277,6 +323,40 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
 
+    /**
+     * Here you can modify polyline style
+     */
+    private fun drawPolyline() {
+        val polyline = map.addPolyline(
+            PolylineOptions().apply {
+                width(10f)
+                color(Color.BLUE)
+                jointType(JointType.ROUND)
+                startCap(ButtCap())
+                endCap(ButtCap())
+                addAll(locationList)
+            }
+        )
+        polylineList.add(polyline)
+    }
+
+
+    /**
+     * Pollyline follows options
+     */
+    private fun followPolyline() {
+        if (locationList.isNotEmpty()) {
+            map.animateCamera(
+                (CameraUpdateFactory.newCameraPosition(
+                    setCameraPosition(
+                        locationList.last()
+                    )
+                )), 1000, null
+            )
+        }
+    }
+
+
     private fun stopForegroundService() {
         binding.startButton.disable()
         sendActionCommandToService(Constants.ACTION_SERVICE_STOP)
@@ -308,46 +388,6 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         }
     }
 
-
-    override fun onMyLocationButtonClick(): Boolean {
-        binding.hintTextView.animate().alpha(0f).duration = 1500
-        lifecycleScope.launch {
-            delay(2500)
-            binding.hintTextView.hide()
-            binding.startButton.show()
-        }
-        return false
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-//        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
-    }
-
-
-    /**
-     * if user accepts permissions
-     */
-    override fun onPermissionsGranted(requestCode: Int, perms: List<String>) {
-
-    }
-
-
-    /**
-     * if user doesn't accept permissions
-     */
-    override fun onPermissionsDenied(requestCode: Int, perms: List<String>) {
-        if (EasyPermissions.somePermissionPermanentlyDenied(this, perms)) {
-            SettingsDialog.Builder(requireActivity()).build().show()
-        } else {
-            Permissions.requestLocationPermission(this)
-        }
-    }
-
     private fun showBiggerPicture() {
         val bounds = LatLngBounds.Builder()
         for (location in locationList) {
@@ -362,11 +402,18 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         addMarker(locationList.last())
     }
 
+    /**
+     * Adds markers at the end of the activity
+     */
     private fun addMarker(position: LatLng) {
         val marker = map.addMarker(MarkerOptions().position(position))
         markerList.add(marker)
     }
 
+    /**
+     * Calls result fragment
+     * Displays results
+     */
     private fun displayResults() {
         val result = Result(
             calculateTheDistance(locationList),
@@ -386,43 +433,33 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
 
-    @SuppressLint("MissingPermission")
-    private fun onCameraUser() {
-
-        if (Permissions.hasLocationPermission(requireContext())) {
-            fusedLocationProviderClient.lastLocation.addOnCompleteListener {
-                val lastKnownLocation = LatLng(
-                    it.result.latitude,
-                    it.result.longitude
-                )
-                map.animateCamera(
-                    CameraUpdateFactory.newCameraPosition(
-                        setCameraPosition(lastKnownLocation)
-                    )
-                )
-            }
-        } else {
-            Toast.makeText(context, "No permission", Toast.LENGTH_SHORT).show()
-        }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+//        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
     }
 
 
-    @SuppressLint("MissingPermission")
-    private fun onResetButtonClicked() {
+    /**
+     * When user accepts permissions
+     */
+    override fun onPermissionsGranted(requestCode: Int, perms: List<String>) {
+        TODO("Not yet implemented")
+    }
 
 
-        onCameraUser()
-        for (polyLine in polylineList) {
-            polyLine.remove()
+    /**
+     * What happens when user doesnt accept permissions
+     */
+    override fun onPermissionsDenied(requestCode: Int, perms: List<String>) {
+        if (EasyPermissions.somePermissionPermanentlyDenied(this, perms)) {
+            SettingsDialog.Builder(requireActivity()).build().show()
+        } else {
+            Permissions.requestLocationPermission(this)
         }
-        for (marker in markerList) {
-            marker.remove()
-        }
-        locationList.clear()
-        markerList.clear()
-        binding.restarButton.hide()
-        binding.startButton.show()
-
     }
 
 
@@ -433,8 +470,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
     override fun onMarkerClick(p0: Marker): Boolean {
-
-        return true
+        TODO("Not yet implemented")
     }
 
 
