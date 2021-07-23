@@ -18,7 +18,10 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.android.volley.Request
+import com.android.volley.Response
 import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import com.example.distancetrackerapp.R
 import com.example.distancetrackerapp.databinding.FragmentMapsBinding
 import com.example.distancetrackerapp.model.PlaceLocation
@@ -35,6 +38,7 @@ import com.example.distancetrackerapp.util.ExtensionFunctions.hide
 import com.example.distancetrackerapp.util.ExtensionFunctions.show
 import com.example.distancetrackerapp.util.Permissions
 import com.google.android.gms.common.api.Status
+import com.google.android.gms.common.util.HttpUtils
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -55,6 +59,7 @@ import com.vmadalin.easypermissions.dialogs.SettingsDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.net.URL
 import java.util.*
 
 
@@ -70,7 +75,6 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     private val binding get() = _binding!!
 
     private lateinit var map: GoogleMap
-
 
     private lateinit var autoCompleteSupportMapFragment_destination: AutocompleteSupportFragment
     private lateinit var autoCompleteSupportMapFragment_origin: AutocompleteSupportFragment
@@ -89,10 +93,6 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     private var polylineList = mutableListOf<Polyline>()
     private var markerList = mutableListOf<Marker>()
 
-    //Directions API request
-    /* private val urlDirections = "https://maps.googleapis.com/maps/api/directions/json?" +
-             "origin=${originPlace.latitude},${originPlace.longitude}&destination=${destinationPlace.latitude},${destinationPlace.longitude}" +
-             "&key=<$API_KEY>&mode=driving"*/
 
     // Construct a FusedLocationProviderClient.
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
@@ -143,29 +143,53 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
 
-    /* private fun prueba(){
+    /* private fun getJsonFromURL(){
 
-         val directionsRequest = object : StringRequest(Request.Method.GET, urlDirections, Response.Listener<String> {
-                 response ->
-             val jsonResponse = JSONObject(response)
-             // Get routes
-             val routes = jsonResponse.getJSONArray("routes")
-             val legs = routes.getJSONObject(0).getJSONArray("legs")
-             val steps = legs.getJSONObject(0).getJSONArray("steps")
-             for (i in 0 until steps.length()) {
-                 val points = steps.getJSONObject(i).getJSONObject("polyline").getString("points")
-                 path.add(PolyUtil.decode(points))
-             }
-             for (i in 0 until path.size) {
-                 this.googleMap!!.addPolyline(PolylineOptions().addAll(path[i]).color(Color.RED))
-             }
-         }, Response.ErrorListener {
-                 _ ->
-         }){}
-         val requestQueue = Volley.newRequestQueue(this)
-         requestQueue.add(directionsRequest)
+         //Directions API request
+         val urlDirections = "https://maps.googleapis.com/maps/api/directions/json?" +
+                 "origin=${originPlace.id}&destination=${destinationPlace.id}" +
+                 "&key=$API_KEY&mode=driving"
+         try {
+             //Get the API response.
+             response = urllib.request.urlopen(url)
+
+         }
 
      }*/
+
+    private fun prueba() {
+
+        val path: MutableList<List<LatLng>> = ArrayList()
+
+        //Directions API request
+        val urlDirections = "https://maps.googleapis.com/maps/api/directions/json?" +
+                "origin=place_id:${originPlace.id}&destination=place_id:${destinationPlace.id}" +
+                "&key=$API_KEY&mode=driving"
+
+        val directionsRequest = object :
+            StringRequest(Request.Method.GET, urlDirections, Response.Listener<String> { response ->
+                val jsonResponse = JSONObject(response)
+                // Get routes
+                val routes = jsonResponse.getJSONArray("routes")
+                val legs = routes.getJSONObject(0).getJSONArray("legs")
+                val steps = legs.getJSONObject(0).getJSONArray("steps")
+
+                for (i in 0 until steps.length()) {
+                    val points =
+                        steps.getJSONObject(i).getJSONObject("polyline").getString("points")
+                    path.add(PolyUtil.decode(points))
+                }
+                for (i in 0 until path.size) {
+                    map.addPolyline(PolylineOptions().addAll(path[i]).color(Color.RED))
+                }
+            }, Response.ErrorListener { _ ->
+                Log.d("JSON", "JSON RESPONSE ERROR")
+            }) {}
+        val requestQueue = Volley.newRequestQueue(requireContext())
+        requestQueue.add(directionsRequest)
+
+
+    }
 
 
     /**
@@ -377,6 +401,8 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
             override fun onError(p0: Status) {
                 Snackbar.make(requireView(), p0.statusMessage!!, Snackbar.LENGTH_LONG).show()
             }
+
+
         })
 
         //Set up placeselectionlistener to handle the response.
@@ -426,6 +452,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         locationList.add(destination)
         showBiggerPicture()
         drawPolyline()
+        prueba()
 
     }
 
@@ -567,7 +594,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         }
         map.animateCamera(
             CameraUpdateFactory.newLatLngBounds(
-                bounds.build(), 100
+                bounds.build(), 30
             ), 2000, null
         )
     }
@@ -636,6 +663,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     override fun onMarkerClick(p0: Marker): Boolean {
         TODO("Not yet implemented")
     }
+
 }
 
 
