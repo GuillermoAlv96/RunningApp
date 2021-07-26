@@ -18,7 +18,6 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import com.android.volley.Request
 import com.android.volley.Response
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
@@ -38,7 +37,6 @@ import com.example.distancetrackerapp.util.ExtensionFunctions.hide
 import com.example.distancetrackerapp.util.ExtensionFunctions.show
 import com.example.distancetrackerapp.util.Permissions
 import com.google.android.gms.common.api.Status
-import com.google.android.gms.common.util.HttpUtils
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -53,22 +51,20 @@ import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
 import com.google.android.material.snackbar.Snackbar
 import com.google.maps.android.PolyUtil
-import com.google.maps.android.data.geojson.GeoJsonLayer
 import com.vmadalin.easypermissions.EasyPermissions
 import com.vmadalin.easypermissions.dialogs.SettingsDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.net.URL
 import java.util.*
-
 
 /**
  * On this class we initialize the map and buttons, texfields, and everything on it also their functions
  * Also ask for background permissions
  */
 
-class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButtonClickListener,
+class MapsFragment : Fragment(), OnMapReadyCallback,
+    GoogleMap.OnMyLocationButtonClickListener,
     GoogleMap.OnMarkerClickListener, EasyPermissions.PermissionCallbacks {
 
     private var _binding: FragmentMapsBinding? = null
@@ -76,8 +72,8 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
 
     private lateinit var map: GoogleMap
 
-    private lateinit var autoCompleteSupportMapFragment_destination: AutocompleteSupportFragment
-    private lateinit var autoCompleteSupportMapFragment_origin: AutocompleteSupportFragment
+    private lateinit var autoCompleteSupportMapFragmentDestination: AutocompleteSupportFragment
+    private lateinit var autoCompleteSupportMapFragmentOrigin: AutocompleteSupportFragment
 
     //Origin and Destination LatLng
     private lateinit var destinationPlace: PlaceLocation
@@ -102,6 +98,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
 
     //probando autocomplete maps
     private var something: Boolean = false
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -142,63 +139,14 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         return binding.root
     }
 
-
-    /* private fun getJsonFromURL(){
-
-         //Directions API request
-         val urlDirections = "https://maps.googleapis.com/maps/api/directions/json?" +
-                 "origin=${originPlace.id}&destination=${destinationPlace.id}" +
-                 "&key=$API_KEY&mode=driving"
-         try {
-             //Get the API response.
-             response = urllib.request.urlopen(url)
-
-         }
-
-     }*/
-
-    private fun prueba() {
-
-        val path: MutableList<List<LatLng>> = ArrayList()
-
-        //Directions API request
-        val urlDirections = "https://maps.googleapis.com/maps/api/directions/json?" +
-                "origin=place_id:${originPlace.id}&destination=place_id:${destinationPlace.id}" +
-                "&key=$API_KEY&mode=driving"
-
-        val directionsRequest = object :
-            StringRequest(Request.Method.GET, urlDirections, Response.Listener<String> { response ->
-                val jsonResponse = JSONObject(response)
-                // Get routes
-                val routes = jsonResponse.getJSONArray("routes")
-                val legs = routes.getJSONObject(0).getJSONArray("legs")
-                val steps = legs.getJSONObject(0).getJSONArray("steps")
-
-                for (i in 0 until steps.length()) {
-                    val points =
-                        steps.getJSONObject(i).getJSONObject("polyline").getString("points")
-                    path.add(PolyUtil.decode(points))
-                }
-                for (i in 0 until path.size) {
-                    map.addPolyline(PolylineOptions().addAll(path[i]).color(Color.RED))
-                }
-            }, Response.ErrorListener { _ ->
-                Log.d("JSON", "JSON RESPONSE ERROR")
-            }) {}
-        val requestQueue = Volley.newRequestQueue(requireContext())
-        requestQueue.add(directionsRequest)
-
-
-    }
-
-
     /**
      * After the view has been completely created it calls...
      */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 
         super.onViewCreated(view, savedInstanceState)
-        val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
+        val mapFragment =
+            childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
 
         mapFragment?.getMapAsync(this@MapsFragment)
 
@@ -235,6 +183,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
             // layer.addLayerToMap()
 
             googlePlacesDestination()
+
 
         } else {
             Permissions.requestLocationPermission(this)
@@ -361,18 +310,18 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     private fun googlePlacesDestination() {
 
         //Initialize the autocomplete fragment
-        autoCompleteSupportMapFragment_destination =
+        autoCompleteSupportMapFragmentDestination =
             childFragmentManager.findFragmentById(R.id.autocomplete_fragment_destination) as AutocompleteSupportFragment
 
-        autoCompleteSupportMapFragment_origin =
+        autoCompleteSupportMapFragmentOrigin =
             childFragmentManager.findFragmentById(R.id.autocomplete_fragment_origin) as AutocompleteSupportFragment
 
         //Set autocomplete filters
-        autoCompletePlaceFilters(autoCompleteSupportMapFragment_destination)
-        autoCompletePlaceFilters(autoCompleteSupportMapFragment_origin)
+        autoCompletePlaceFilters(autoCompleteSupportMapFragmentDestination)
+        autoCompletePlaceFilters(autoCompleteSupportMapFragmentOrigin)
 
         //Set up placeselectionlistener to handle the response.
-        autoCompleteSupportMapFragment_destination.setOnPlaceSelectedListener(object :
+        autoCompleteSupportMapFragmentDestination.setOnPlaceSelectedListener(object :
             PlaceSelectionListener {
             @SuppressLint("MissingPermission")
             override fun onPlaceSelected(p0: Place) {
@@ -382,12 +331,14 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
                     val name = p0.name ?: return
                     val latLng = p0.latLng ?: return
 
-                    destinationPlace = PlaceLocation(id, name, latLng.latitude, latLng.longitude)
+                    destinationPlace =
+                        PlaceLocation(id, name, latLng.latitude, latLng.longitude)
 
                     //After select location show placesoriginfragment
                     binding.autocompleteFragmentOrigin.show()
 
-                    Snackbar.make(requireView(), "" + p0.latLng, Snackbar.LENGTH_SHORT).show()
+                    Snackbar.make(requireView(), "" + p0.latLng, Snackbar.LENGTH_SHORT)
+                        .show()
 
                     if (something) {
                         generateRoute()
@@ -399,14 +350,15 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
             }
 
             override fun onError(p0: Status) {
-                Snackbar.make(requireView(), p0.statusMessage!!, Snackbar.LENGTH_LONG).show()
+                Snackbar.make(requireView(), p0.statusMessage!!, Snackbar.LENGTH_LONG)
+                    .show()
             }
 
 
         })
 
         //Set up placeselectionlistener to handle the response.
-        autoCompleteSupportMapFragment_origin.setOnPlaceSelectedListener(object :
+        autoCompleteSupportMapFragmentOrigin.setOnPlaceSelectedListener(object :
             PlaceSelectionListener {
 
             override fun onPlaceSelected(p0: Place) {
@@ -442,17 +394,96 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         )
     }
 
+    /**
+     *     Gets Distance and time of the Route from GoogleMatrix API
+     */
+    private fun getRouteMatrix() {
+
+        //Directions API request
+        val urlDirections = "https://maps.googleapis.com/maps/api/distancematrix/json?" +
+                "origins=place_id:${originPlace.id}&destinations=place_id:${destinationPlace.id}" +
+                "&key=$API_KEY&mode=driving" +
+                "&mode=driving"
+
+        // val urlDirectionsMatrix = "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=40.6655101,-73.89188969999998&destinations=enc:_kjwFjtsbMt`EgnKcqLcaOzkGari%40naPxhVg|Jjjb%40cqLcaOzkGari%40naPxhV:&key=AIzaSyDZ_fkT69DZrnWh7SssIjV4TznK7ln-mLA"
+
+        val directionsRequest = object :
+            StringRequest(Method.GET, urlDirections, Response.Listener<String> { response ->
+                val jsonResponse = JSONObject(response)
+
+                val rows = jsonResponse.getJSONArray("rows")
+                val elements = rows.getJSONObject(0).getJSONArray("elements")
+
+                for (i in 0 until elements.length()) {
+                    val distance = elements.getJSONObject(i).getJSONObject("distance")
+                    Log.d("Matrix", "$distance")
+                    val duration = elements.getJSONObject(i).getJSONObject("duration")
+                    Log.d("Matrix", "$duration")
+
+                    //Show pop up screeb with inf
+
+                    val directions =
+                        MapsFragmentDirections.actionMapsFragmentToPlaceFragment()
+                    findNavController().navigate(directions)
+
+                }
+
+            }, Response.ErrorListener { _ ->
+                Log.d("JSON", "JSON RESPONSE ERROR")
+            }) {}
+        val requestQueue = Volley.newRequestQueue(requireContext())
+        requestQueue.add(directionsRequest)
+
+    }
+
+    /**
+     * Gets route from GoogleDistance API
+     * and paints a polyline between origin and destination
+     */
+    private fun getRouteDirections() {
+
+        val path: MutableList<List<LatLng>> = ArrayList()
+
+        //Directions API request
+        val urlDirections = "https://maps.googleapis.com/maps/api/directions/json?" +
+                "origin=place_id:${originPlace.id}&destination=place_id:${destinationPlace.id}" +
+                "&key=$API_KEY&mode=driving"
+
+        val directionsRequest = object :
+            StringRequest(Method.GET, urlDirections, Response.Listener<String> { response ->
+                val jsonResponse = JSONObject(response)
+                // Get routes
+                val routes = jsonResponse.getJSONArray("routes")
+                val legs = routes.getJSONObject(0).getJSONArray("legs")
+                val steps = legs.getJSONObject(0).getJSONArray("steps")
+
+                for (i in 0 until steps.length()) {
+                    val points =
+                        steps.getJSONObject(i).getJSONObject("polyline").getString("points")
+                    path.add(PolyUtil.decode(points))
+                }
+                for (i in 0 until path.size) {
+                    map.addPolyline(PolylineOptions().addAll(path[i]).color(Color.RED))
+                }
+            }, Response.ErrorListener { _ ->
+                Log.d("JSON", "JSON RESPONSE ERROR")
+            }) {}
+        val requestQueue = Volley.newRequestQueue(requireContext())
+        requestQueue.add(directionsRequest)
+
+    }
 
     private fun generateRoute() {
 
 
-        val origin: LatLng = LatLng(originPlace.latitude, originPlace.longitude)
-        val destination: LatLng = LatLng(destinationPlace.latitude, destinationPlace.longitude)
+        val origin = LatLng(originPlace.latitude, originPlace.longitude)
+        val destination = LatLng(destinationPlace.latitude, destinationPlace.longitude)
         locationList.add(origin)
         locationList.add(destination)
         showBiggerPicture()
         drawPolyline()
-        prueba()
+        getRouteDirections()
+        getRouteMatrix()
 
     }
 
@@ -468,7 +499,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
                 val currentSecond = millisUntilFinished / 1000
 
                 if (currentSecond.toString() == "0") {
-                    binding.timerTextView.text = "GO"
+                    binding.timerTextView.text = "d"
                     binding.timerTextView.setTextColor(
                         ContextCompat.getColor(
                             requireContext(),
@@ -600,7 +631,7 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
     }
 
     /**
-     * Adds markers at the end of the activity
+     * Adds markers
      */
     private fun addMarker(position: LatLng) {
         val marker = map.addMarker(MarkerOptions().position(position))
@@ -618,12 +649,12 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         )
         lifecycleScope.launch {
             delay(2500)
-            val directions = MapsFragmentDirections.actionMapsFragmentToResultFragment(result)
+            val directions =
+                MapsFragmentDirections.actionMapsFragmentToResultFragment(result)
             findNavController().navigate(directions)
 
         }
     }
-
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -631,7 +662,12 @@ class MapsFragment : Fragment(), OnMapReadyCallback, GoogleMap.OnMyLocationButto
         grantResults: IntArray
     ) {
         //        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
+        EasyPermissions.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults,
+            this
+        )
     }
 
 
