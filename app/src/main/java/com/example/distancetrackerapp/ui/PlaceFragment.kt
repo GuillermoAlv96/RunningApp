@@ -54,7 +54,7 @@ class PlaceFragment : BottomSheetDialogFragment() {
         Places.initialize(requireContext(), Constants.API_KEY)
         //Initialize the autocomplete fragment
         autoCompleteSupportMapFragment =
-            childFragmentManager.findFragmentById(R.id.autocomplete_fragment1) as AutocompleteSupportFragment
+            childFragmentManager.findFragmentById(R.id.autocomplete_fragment_origin) as AutocompleteSupportFragment
         //Specify the types of place data to return
         autoCompleteSupportMapFragment.setPlaceFields(
             Arrays.asList(
